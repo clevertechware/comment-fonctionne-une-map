@@ -74,15 +74,24 @@ func TestInsertFailsOnFullGroup(t *testing.T) {
 	}
 }
 
+// withSameH2ButDifferentH1 fabrique un hash différent de hash qui conserve son H2 (les 7 bits de poids faible).
+//
+//   - `hash &^ 0x7f` (AND NOT) met les 7 bits bas à zéro, ce qui efface H2 ;
+//   - `^ 0x1_0000_0000` inverse le bit 32 : le hash change, donc H1 aussi. Tout bit au-dessus du bit 6 conviendrait ;
+//   - `| hash & 0x7f` remet le H2 d'origine dans les 7 bits bas libérés.
+//
+// MatchH2 ne comparant que H2, le slot de la clé d'origine est remonté à tort (faux positif) : seule la
+// comparaison de clé dans Lookup doit l'écarter.
+func withSameH2ButDifferentH1(hash uint64) uint64 {
+	return (hash&^0x7f ^ 0x1_0000_0000) | hash&0x7f
+}
+
 func TestMatchH2CanReturnFalsePositiveConfirmedByKeyComparison(t *testing.T) {
 	g := NewEmptyGroup()
 	hash := hashKey("marie")
 	g.Insert(hash, "marie")
 
-	// Un hash différent qui partage le même H2 doit matcher au niveau du
-	// contrôle mais être écarté par la comparaison de clé dans Lookup.
-	collidingHash := (hash &^ 0x7f) ^ 0x1_0000_0000
-	collidingHash |= hash & 0x7f
+	collidingHash := withSameH2ButDifferentH1(hash)
 
 	matches := g.MatchH2(collidingHash)
 	if len(matches) == 0 {

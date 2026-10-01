@@ -20,8 +20,7 @@ func h1(h uint64) uint64 {
 	return h >> 7
 }
 
-// h2 retourne les 7 bits bas du hash : la valeur stockée dans l'octet de
-// contrôle d'un slot occupé.
+// h2 retourne les 7 bits bas du hash : la valeur stockée dans l'octet de contrôle d'un slot occupé.
 func h2(h uint64) byte {
 	return byte(h & 0x7f)
 }
@@ -54,10 +53,10 @@ func (g *Group) Insert(hash uint64, key string) bool {
 	return false
 }
 
-// MatchH2 retourne les indices des slots dont l'octet de contrôle égale H2.
-// Comme dans le runtime, une correspondance H2 est un candidat : elle doit
-// encore être confirmée par une comparaison de la clé complète, parce que
-// H2 ne fait que 7 bits et peut donner de faux positifs.
+// MatchH2 retourne les indices des slots dont l'octet de contrôle égal H2.
+//
+// Comme dans le runtime, une correspondance H2 est un candidat : elle doit encore être confirmée par une comparaison
+// de la clé complète, parce que H2 ne fait que 7 bits et peut donner de faux positifs.
 func (g *Group) MatchH2(hash uint64) []int {
 	target := h2(hash)
 	var matches []int
