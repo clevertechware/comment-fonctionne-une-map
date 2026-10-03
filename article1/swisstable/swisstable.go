@@ -1,13 +1,7 @@
-// Package swisstable est une réimplémentation pédagogique minimale du
-// filtre H1/H2 des Swiss Tables de Go. Ce n'est PAS le code du runtime :
-// c'est une version simplifiée, pour illustrer le découpage du hash et le
-// test du mot de contrôle. table.go et map.go y ajoutent la croissance décrite
-// dans l'article 2 (doublement sur place d'une table, scission à 1024 slots,
-// annuaire). Le code réel vit dans internal/runtime/maps
-// (non importable depuis l'extérieur de la stdlib) ; les formules h1/h2
-// et les constantes ctrlEmpty/ctrlDeleted ci-dessous sont recopiées à
-// l'identique depuis internal/runtime/maps/map.go et group.go, Go 1.27.1
-// (go env GOROOT -> src/internal/runtime/maps).
+// Package swisstable est une réimplémentation pédagogique minimale des Swiss Tables de Go : le filtre H1/H2
+// (ici), puis la croissance d'une table et l'annuaire (table.go et map.go). Ce n'est PAS le code du runtime,
+// qui vit dans internal/runtime/maps et n'est pas importable hors de la stdlib. Les formules h1/h2 et les
+// constantes ctrlEmpty/ctrlDeleted sont recopiées à l'identique de map.go et group.go (Go 1.27.1).
 package swisstable
 
 const groupSize = 8

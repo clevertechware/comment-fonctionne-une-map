@@ -1,8 +1,5 @@
-// BenchmarkInsert1000 sert à comparer l'implémentation hmap (Go <= 1.23,
-// GOEXPERIMENT=noswissmap sur 1.24/1.25) aux Swiss Tables (par défaut depuis
-// Go 1.24, seule implémentation depuis Go 1.26). Voir le README pour lancer
-// ce même bench avec deux toolchains différentes : ce fichier ne fabrique
-// aucun chiffre de comparaison, il ne fait que fournir le bench à relancer.
+// BenchmarkInsert1000 compare hmap (Go <= 1.23, ou GOEXPERIMENT=noswissmap sur 1.24/1.25) aux Swiss Tables (défaut
+// depuis Go 1.24, seule implémentation depuis Go 1.26). Voir le README pour le relancer sous deux toolchains.
 package article2
 
 import "testing"
