@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+const maxKeysPerTable = maxTableCapacity * maxAvgGroupLoad / groupSize
+
 func newTestTable() *Table {
 	return NewTable(maphash.MakeSeed())
 }
@@ -31,7 +33,7 @@ func TestTableDoublesItsCapacityWhenLoadExceedsSevenEighths(t *testing.T) {
 }
 
 func TestTableKeepsEveryKeyAfterGrowing(t *testing.T) {
-	const n = 1000
+	const n = maxKeysPerTable
 	table := newTestTable()
 
 	for i := range n {
@@ -51,7 +53,7 @@ func TestTableKeepsEveryKeyAfterGrowing(t *testing.T) {
 func TestTableNeverExceedsSevenEighthsLoadAfterAnInsert(t *testing.T) {
 	table := newTestTable()
 
-	for i := range 1000 {
+	for i := range maxKeysPerTable {
 		table.Insert(key(i))
 		if table.Len()*groupSize > table.Capacity()*maxAvgGroupLoad {
 			t.Fatalf("après %d clés, %d/%d slots occupés dépasse 7/8", i+1, table.Len(), table.Capacity())

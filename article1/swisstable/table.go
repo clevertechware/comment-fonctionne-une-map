@@ -6,16 +6,25 @@ import "hash/maphash"
 // recopié de internal/runtime/maps/map.go (Go 1.27.1).
 const maxAvgGroupLoad = 7
 
-// Table est un tableau de groupes qui double sur place quand son facteur de charge dépasse 7/8.
+// maxTableCapacity est le plafond d'une table en slots : au-delà, elle se scinde au lieu de doubler.
+const maxTableCapacity = 1024
+
+// Table est un tableau de groupes qui double sur place quand son facteur de charge dépasse 7/8,
+// jusqu'à maxTableCapacity slots.
 type Table struct {
-	seed   maphash.Seed
-	groups []Group
-	used   int
+	seed       maphash.Seed
+	groups     []Group
+	used       int
+	localDepth uint8
 }
 
 // NewTable construit une table d'un seul groupe.
 func NewTable(seed maphash.Seed) *Table {
-	return &Table{seed: seed, groups: newGroups(1)}
+	return newTable(seed, 1, 0)
+}
+
+func newTable(seed maphash.Seed, groupCount int, localDepth uint8) *Table {
+	return &Table{seed: seed, groups: newGroups(groupCount), localDepth: localDepth}
 }
 
 func newGroups(count int) []Group {
@@ -67,15 +76,20 @@ func (g *Group) hasEmptySlot() bool {
 }
 
 // Insert ajoute key à la table, en doublant sa taille si l'ajout dépasse le facteur de charge de 7/8.
-func (t *Table) Insert(key string) {
+// Retourne false, sans rien insérer, si la table est déjà au plafond : l'appelant doit alors la scinder.
+func (t *Table) Insert(key string) bool {
 	if t.Contains(key) {
-		return
+		return true
 	}
 	if t.used+1 > t.Capacity()*maxAvgGroupLoad/groupSize {
+		if t.Capacity() >= maxTableCapacity {
+			return false
+		}
 		t.grow()
 	}
 	t.place(t.hash(key), key)
 	t.used++
+	return true
 }
 
 func (t *Table) place(hash uint64, key string) {
