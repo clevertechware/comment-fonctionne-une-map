@@ -36,10 +36,14 @@ type Group struct {
 // NewEmptyGroup construit un groupe dont tous les slots sont vides.
 func NewEmptyGroup() *Group {
 	g := &Group{}
+	g.markAllEmpty()
+	return g
+}
+
+func (g *Group) markAllEmpty() {
 	for i := range g.ctrl {
 		g.ctrl[i] = ctrlEmpty
 	}
-	return g
 }
 
 // Insert place key dans le premier slot vide du groupe, en y posant son H2.

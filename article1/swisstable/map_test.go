@@ -4,19 +4,19 @@ import "testing"
 
 func fillMap(m *Map, n int) {
 	for i := range n {
-		m.Insert(key(i))
+		m.Insert(testKey(i))
 	}
 }
 
 func TestTableAtMaxCapacityRefusesInsertInsteadOfGrowing(t *testing.T) {
 	table := newTestTable()
 	for i := range maxKeysPerTable {
-		if !table.Insert(key(i)) {
+		if !table.Insert(testKey(i)) {
 			t.Fatalf("insertion %d refusée avant le plafond", i+1)
 		}
 	}
 
-	if table.Insert(key(maxKeysPerTable)) {
+	if table.Insert(testKey(maxKeysPerTable)) {
 		t.Error("une table de 1024 slots à 7/8 de charge doit refuser l'insertion pour se faire scinder")
 	}
 	if got := table.Capacity(); got != maxTableCapacity {
@@ -32,7 +32,7 @@ func TestMapSplitsItsTableOnceTheFirstOneIsFull(t *testing.T) {
 		t.Fatalf("%d tables pour %d clés, voulu 1", got, maxKeysPerTable)
 	}
 
-	m.Insert(key(maxKeysPerTable))
+	m.Insert(testKey(maxKeysPerTable))
 	if got := m.TableCount(); got != 2 {
 		t.Errorf("%d tables après une clé de plus que le plafond d'une table, voulu 2", got)
 	}
@@ -48,8 +48,8 @@ func TestMapKeepsEveryKeyAcrossSplits(t *testing.T) {
 	fillMap(m, n)
 
 	for i := range n {
-		if !m.Contains(key(i)) {
-			t.Fatalf("clé %q perdue pendant les scissions", key(i))
+		if !m.Contains(testKey(i)) {
+			t.Fatalf("clé %q perdue pendant les scissions", testKey(i))
 		}
 	}
 	if got := m.Len(); got != n {
@@ -73,7 +73,7 @@ func TestSplitReplacesOnlyTheFullTableAndLeavesTheOthersUntouched(t *testing.T) 
 
 	next := 5000
 	for m.TableCount() == len(before) {
-		m.Insert(key(next))
+		m.Insert(testKey(next))
 		next++
 	}
 

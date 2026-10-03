@@ -30,7 +30,7 @@ func newTable(seed maphash.Seed, groupCount int, localDepth uint8) *Table {
 func newGroups(count int) []Group {
 	groups := make([]Group, count)
 	for i := range groups {
-		groups[i] = *NewEmptyGroup()
+		groups[i].markAllEmpty()
 	}
 	return groups
 }

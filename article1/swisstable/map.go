@@ -4,6 +4,9 @@ import "hash/maphash"
 
 // Map route chaque clé vers une Table grâce à un annuaire indexé par les premiers bits de son hash.
 // Quand une table atteint son plafond, elle seule se scinde en deux : les autres ne bougent pas.
+//
+// Comme la map du runtime, une Map n'est pas sûre pour un usage concurrent : une écriture simultanée à une autre
+// opération doit être protégée par l'appelant.
 type Map struct {
 	seed        maphash.Seed
 	directory   []*Table
@@ -53,7 +56,7 @@ func (m *Map) TableCount() int {
 }
 
 func (m *Map) distinctTables() []*Table {
-	var tables []*Table
+	tables := []*Table{}
 	seen := map[*Table]bool{}
 	for _, t := range m.directory {
 		if !seen[t] {
