@@ -1,6 +1,9 @@
 package swisstable
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func fillMap(m *Map, n int) {
 	for i := range n {
@@ -122,5 +125,39 @@ func TestTopBitsReadsTheHighestBitsOfTheHash(t *testing.T) {
 		if got := topBits(hash, tt.count); got != tt.want {
 			t.Errorf("topBits(%#x, %d) = %#b, voulu %#b", uint64(hash), tt.count, got, tt.want)
 		}
+	}
+}
+
+func TestGoesRightReadsTheBitThatFollowsTheAlreadyReadPrefix(t *testing.T) {
+	const hash = 0b101 << 61
+
+	tests := []struct {
+		depth uint8
+		want  bool
+	}{
+		{depth: 1, want: true},
+		{depth: 2, want: false},
+		{depth: 3, want: true},
+		{depth: 4, want: false},
+	}
+	for _, tt := range tests {
+		if got := goesRight(hash, tt.depth); got != tt.want {
+			t.Errorf("goesRight(%#x, %d) = %t, voulu %t", uint64(hash), tt.depth, got, tt.want)
+		}
+	}
+}
+
+func TestEntryGoesRightSplitsTheDirectoryRangeOfASplitTable(t *testing.T) {
+	m := &Map{globalDepth: 3}
+
+	rightEntries := []int{0b001, 0b011, 0b101, 0b111}
+	for index := range 1 << m.globalDepth {
+		want := slices.Contains(rightEntries, index)
+		if got := m.entryGoesRight(index, 3); got != want {
+			t.Errorf("entryGoesRight(%03b, 3) = %t, voulu %t", index, got, want)
+		}
+	}
+	if m.entryGoesRight(0b011, 1) || !m.entryGoesRight(0b100, 1) {
+		t.Error("à la profondeur 1, seule la moitié haute de l'annuaire va à droite")
 	}
 }

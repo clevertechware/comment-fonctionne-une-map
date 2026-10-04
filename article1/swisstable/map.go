@@ -27,6 +27,22 @@ func topBits(hash uint64, count uint8) uint64 {
 	return hash >> (hashBits - count)
 }
 
+// bitFromTop retourne le bit de rang position (1 pour le plus fort) d'un entier lu sur width bits.
+func bitFromTop(value uint64, width, position uint8) uint64 {
+	return value >> (width - position) & 1
+}
+
+// goesRight indique si, à la profondeur depth, un hash passe dans la moitié droite d'une table qui se scinde.
+func goesRight(hash uint64, depth uint8) bool {
+	return bitFromTop(hash, hashBits, depth) == 1
+}
+
+// entryGoesRight indique si l'entrée index de l'annuaire, lue sur globalDepth bits, appartient à la moitié droite
+// d'une table qui se scinde à la profondeur depth.
+func (m *Map) entryGoesRight(index int, depth uint8) bool {
+	return bitFromTop(uint64(index), m.globalDepth, depth) == 1
+}
+
 func (m *Map) directoryIndex(hash uint64) uint64 {
 	return topBits(hash, m.globalDepth)
 }
@@ -87,7 +103,7 @@ func (m *Map) split(full *Table) {
 	eachKey(full.groups, func(key string) {
 		hash := m.hash(key)
 		target := left
-		if hash>>(64-depth)&1 == 1 {
+		if goesRight(hash, depth) {
 			target = right
 		}
 		target.place(hash, key)
