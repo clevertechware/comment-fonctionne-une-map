@@ -100,27 +100,38 @@ func (m *Map) split(full *Table) {
 	left := newTable(m.seed, len(full.groups), depth)
 	right := newTable(m.seed, len(full.groups), depth)
 
+	m.redistribute(full, left, right)
+	if m.directoryTooShallowFor(depth) {
+		m.doubleDirectory()
+	}
+	m.repointDirectory(full, left, right)
+}
+
+func (m *Map) redistribute(full, left, right *Table) {
 	eachKey(full.groups, func(key string) {
 		hash := m.hash(key)
 		target := left
-		if goesRight(hash, depth) {
+		if goesRight(hash, right.localDepth) {
 			target = right
 		}
 		target.place(hash, key)
 		target.used++
 	})
+}
 
-	if depth > m.globalDepth {
-		m.doubleDirectory()
-	}
+func (m *Map) directoryTooShallowFor(depth uint8) bool {
+	return depth > m.globalDepth
+}
+
+func (m *Map) repointDirectory(full, left, right *Table) {
 	for i, t := range m.directory {
 		if t != full {
 			continue
 		}
-		if i>>(m.globalDepth-depth)&1 == 0 {
-			m.directory[i] = left
-		} else {
+		if m.entryGoesRight(i, right.localDepth) {
 			m.directory[i] = right
+		} else {
+			m.directory[i] = left
 		}
 	}
 }
