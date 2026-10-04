@@ -81,8 +81,8 @@ func (t *Table) Insert(key string) bool {
 	if t.Contains(key) {
 		return true
 	}
-	if t.used+1 > t.Capacity()*maxAvgGroupLoad/groupSize {
-		if t.Capacity() >= maxTableCapacity {
+	if t.reachesLoadLimit() {
+		if t.atMaxCapacity() {
 			return false
 		}
 		t.grow()
@@ -90,6 +90,18 @@ func (t *Table) Insert(key string) bool {
 	t.place(t.hash(key), key)
 	t.used++
 	return true
+}
+
+func (t *Table) loadLimit() int {
+	return len(t.groups) * maxAvgGroupLoad
+}
+
+func (t *Table) reachesLoadLimit() bool {
+	return t.used+1 > t.loadLimit()
+}
+
+func (t *Table) atMaxCapacity() bool {
+	return t.Capacity() >= maxTableCapacity
 }
 
 func (t *Table) place(hash uint64, key string) {

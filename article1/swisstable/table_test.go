@@ -84,3 +84,33 @@ func TestContainsRejectsAbsentKeyAfterGrowing(t *testing.T) {
 		t.Error("une clé jamais insérée ne doit pas être trouvée")
 	}
 }
+
+func TestTableReachesItsLoadLimitOnTheInsertThatExceedsSevenKeysPerGroup(t *testing.T) {
+	table := newTestTable()
+
+	for i := range 7 {
+		table.Insert(testKey(i))
+	}
+
+	if got := table.loadLimit(); got != 7 {
+		t.Errorf("loadLimit = %d, voulu 7 pour un groupe", got)
+	}
+	if !table.reachesLoadLimit() {
+		t.Error("le 8e ajout dépasse 7 clés dans un groupe, la table doit grossir")
+	}
+}
+
+func TestTableIsAtMaxCapacityOnlyOnceItHoldsMaxTableCapacitySlots(t *testing.T) {
+	table := newTestTable()
+	if table.atMaxCapacity() {
+		t.Error("une table d'un groupe n'est pas au plafond")
+	}
+
+	for i := range maxKeysPerTable {
+		table.Insert(testKey(i))
+	}
+
+	if !table.atMaxCapacity() {
+		t.Errorf("une table de %d slots est au plafond", table.Capacity())
+	}
+}
