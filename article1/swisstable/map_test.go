@@ -105,3 +105,22 @@ func TestDirectoryDoublesOnlyWhenTheSplitTableReadsAsManyBitsAsTheDirectory(t *t
 		}
 	}
 }
+
+func TestTopBitsReadsTheHighestBitsOfTheHash(t *testing.T) {
+	const hash = 0b1011 << 60
+
+	tests := []struct {
+		count uint8
+		want  uint64
+	}{
+		{count: 0, want: 0},
+		{count: 1, want: 0b1},
+		{count: 4, want: 0b1011},
+		{count: 64, want: hash},
+	}
+	for _, tt := range tests {
+		if got := topBits(hash, tt.count); got != tt.want {
+			t.Errorf("topBits(%#x, %d) = %#b, voulu %#b", uint64(hash), tt.count, got, tt.want)
+		}
+	}
+}

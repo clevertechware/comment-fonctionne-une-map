@@ -19,10 +19,16 @@ func NewMap() *Map {
 	return &Map{seed: seed, directory: []*Table{NewTable(seed)}}
 }
 
-// directoryIndex lit les globalDepth premiers bits du hash. Un décalage de 64 donne 0 en Go,
-// ce qui couvre le cas globalDepth = 0.
+const hashBits = 64
+
+// topBits retourne les count bits de poids fort de hash. Un décalage de 64 donne 0 en Go,
+// ce qui couvre le cas count = 0.
+func topBits(hash uint64, count uint8) uint64 {
+	return hash >> (hashBits - count)
+}
+
 func (m *Map) directoryIndex(hash uint64) uint64 {
-	return hash >> (64 - m.globalDepth)
+	return topBits(hash, m.globalDepth)
 }
 
 func (m *Map) tableFor(key string) *Table {
