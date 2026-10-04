@@ -1,0 +1,147 @@
+package swisstable
+
+import (
+	"hash/maphash"
+	"iter"
+)
+
+// maxAvgGroupLoad est le nombre maximal de slots occupés par groupe de 8, soit un facteur de charge de 7/8,
+// recopié de internal/runtime/maps/map.go (Go 1.27.1).
+const maxAvgGroupLoad = 7
+
+// maxTableCapacity est le plafond d'une table en slots : au-delà, elle se scinde au lieu de doubler.
+const maxTableCapacity = 1024
+
+// Table est un tableau de groupes qui double sur place quand son facteur de charge dépasse 7/8,
+// jusqu'à maxTableCapacity slots.
+type Table struct {
+	seed       maphash.Seed
+	groups     []Group
+	used       int
+	localDepth uint8
+}
+
+// NewTable construit une table d'un seul groupe.
+func NewTable(seed maphash.Seed) *Table {
+	return newTable(seed, 1, 0)
+}
+
+func newTable(seed maphash.Seed, groupCount int, localDepth uint8) *Table {
+	return &Table{seed: seed, groups: newGroups(groupCount), localDepth: localDepth}
+}
+
+func newGroups(count int) []Group {
+	groups := make([]Group, count)
+	for i := range groups {
+		groups[i].markAllEmpty()
+	}
+	return groups
+}
+
+// Capacity retourne le nombre de slots de la table.
+func (t *Table) Capacity() int {
+	return len(t.groups) * groupSize
+}
+
+// Len retourne le nombre de clés de la table.
+func (t *Table) Len() int {
+	return t.used
+}
+
+func (t *Table) hash(key string) uint64 {
+	return maphash.String(t.seed, key)
+}
+
+// Contains sonde les groupes à partir de GroupFor et s'arrête au premier groupe qui a encore un slot vide :
+// une clé insérée aurait été placée avant lui.
+func (t *Table) Contains(key string) bool {
+	hash := t.hash(key)
+	for g := range t.probe(hash) {
+		if found, _ := g.Lookup(hash, key); found {
+			return true
+		}
+		if g.hasEmptySlot() {
+			return false
+		}
+	}
+	return false
+}
+
+func (g *Group) hasEmptySlot() bool {
+	for _, c := range g.ctrl {
+		if c == ctrlEmpty {
+			return true
+		}
+	}
+	return false
+}
+
+// Insert ajoute key à la table, en doublant sa taille si l'ajout dépasse le facteur de charge de 7/8.
+// Retourne false, sans rien insérer, si la table est déjà au plafond : l'appelant doit alors la scinder.
+func (t *Table) Insert(key string) bool {
+	if t.Contains(key) {
+		return true
+	}
+	if t.reachesLoadLimit() {
+		if t.atMaxCapacity() {
+			return false
+		}
+		t.grow()
+	}
+	t.place(t.hash(key), key)
+	t.used++
+	return true
+}
+
+func (t *Table) loadLimit() int {
+	return len(t.groups) * maxAvgGroupLoad
+}
+
+func (t *Table) reachesLoadLimit() bool {
+	return t.used+1 > t.loadLimit()
+}
+
+func (t *Table) atMaxCapacity() bool {
+	return t.Capacity() >= maxTableCapacity
+}
+
+func (t *Table) place(hash uint64, key string) {
+	for g := range t.probe(hash) {
+		if g.Insert(hash, key) {
+			return
+		}
+	}
+	panic("swisstable: aucun groupe libre malgré le facteur de charge")
+}
+
+// probe parcourt chaque groupe une fois, à partir de celui que désigne le hash, en rebouclant en fin de table.
+func (t *Table) probe(hash uint64) iter.Seq[*Group] {
+	return func(yield func(*Group) bool) {
+		count := uint64(len(t.groups))
+		start := GroupFor(hash, count)
+		for offset := range count {
+			if !yield(&t.groups[(start+offset)%count]) {
+				return
+			}
+		}
+	}
+}
+
+// grow double le nombre de groupes et replace chaque clé : son groupe de départ dépend du nombre de groupes.
+func (t *Table) grow() {
+	old := t.groups
+	t.groups = newGroups(2 * len(old))
+	eachKey(old, func(key string) {
+		t.place(t.hash(key), key)
+	})
+}
+
+func eachKey(groups []Group, fn func(key string)) {
+	for i := range groups {
+		for slot, c := range groups[i].ctrl {
+			if c != ctrlEmpty && c != ctrlDeleted {
+				fn(groups[i].keys[slot])
+			}
+		}
+	}
+}

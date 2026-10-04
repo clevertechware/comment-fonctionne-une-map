@@ -1,0 +1,147 @@
+package swisstable
+
+import "hash/maphash"
+
+// Map route chaque clé vers une Table grâce à un annuaire indexé par les premiers bits de son hash.
+// Quand une table atteint son plafond, elle seule se scinde en deux : les autres ne bougent pas.
+//
+// Comme la map du runtime, une Map n'est pas sûre pour un usage concurrent : une écriture simultanée à une autre
+// opération doit être protégée par l'appelant.
+type Map struct {
+	seed        maphash.Seed
+	directory   []*Table
+	globalDepth uint8
+}
+
+// NewMap construit une map d'une seule table.
+func NewMap() *Map {
+	seed := maphash.MakeSeed()
+	return &Map{seed: seed, directory: []*Table{NewTable(seed)}}
+}
+
+const hashBits = 64
+
+// topBits retourne les count bits de poids fort de hash. Un décalage de 64 donne 0 en Go,
+// ce qui couvre le cas count = 0.
+func topBits(hash uint64, count uint8) uint64 {
+	return hash >> (hashBits - count)
+}
+
+// bitFromTop retourne le bit de rang position (1 pour le plus fort) d'un entier lu sur width bits.
+func bitFromTop(value uint64, width, position uint8) uint64 {
+	return value >> (width - position) & 1
+}
+
+// goesRight indique si, à la profondeur depth, un hash passe dans la moitié droite d'une table qui se scinde.
+func goesRight(hash uint64, depth uint8) bool {
+	return bitFromTop(hash, hashBits, depth) == 1
+}
+
+// entryGoesRight indique si l'entrée index de l'annuaire, lue sur globalDepth bits, appartient à la moitié droite
+// d'une table qui se scinde à la profondeur depth.
+func (m *Map) entryGoesRight(index int, depth uint8) bool {
+	return bitFromTop(uint64(index), m.globalDepth, depth) == 1
+}
+
+func (m *Map) directoryIndex(hash uint64) uint64 {
+	return topBits(hash, m.globalDepth)
+}
+
+func (m *Map) hash(key string) uint64 {
+	return maphash.String(m.seed, key)
+}
+
+func (m *Map) tableFor(key string) *Table {
+	return m.directory[m.directoryIndex(m.hash(key))]
+}
+
+// Contains retourne true si key a été insérée.
+func (m *Map) Contains(key string) bool {
+	return m.tableFor(key).Contains(key)
+}
+
+// Insert ajoute key, en scindant sa table autant de fois que nécessaire jusqu'à ce qu'elle l'accepte.
+func (m *Map) Insert(key string) {
+	for !m.tableFor(key).Insert(key) {
+		m.split(m.tableFor(key))
+	}
+}
+
+// Len retourne le nombre total de clés.
+func (m *Map) Len() int {
+	total := 0
+	for _, t := range m.distinctTables() {
+		total += t.Len()
+	}
+	return total
+}
+
+// TableCount retourne le nombre de tables distinctes : plusieurs entrées de l'annuaire peuvent viser la même.
+func (m *Map) TableCount() int {
+	return len(m.distinctTables())
+}
+
+func (m *Map) distinctTables() []*Table {
+	tables := []*Table{}
+	seen := map[*Table]bool{}
+	for _, t := range m.directory {
+		if !seen[t] {
+			seen[t] = true
+			tables = append(tables, t)
+		}
+	}
+	return tables
+}
+
+// split remplace full par deux tables de même capacité, une par valeur du bit de hash qui suit ceux déjà lus
+// par full. L'annuaire double d'abord si full lit déjà tous les bits qu'il lit lui-même.
+func (m *Map) split(full *Table) {
+	depth := full.localDepth + 1
+	left := newTable(m.seed, len(full.groups), depth)
+	right := newTable(m.seed, len(full.groups), depth)
+
+	m.redistribute(full, left, right)
+	if m.directoryTooShallowFor(depth) {
+		m.doubleDirectory()
+	}
+	m.repointDirectory(full, left, right)
+}
+
+func (m *Map) redistribute(full, left, right *Table) {
+	eachKey(full.groups, func(key string) {
+		hash := m.hash(key)
+		target := left
+		if goesRight(hash, right.localDepth) {
+			target = right
+		}
+		target.place(hash, key)
+		target.used++
+	})
+}
+
+func (m *Map) directoryTooShallowFor(depth uint8) bool {
+	return depth > m.globalDepth
+}
+
+func (m *Map) repointDirectory(full, left, right *Table) {
+	for i, t := range m.directory {
+		if t != full {
+			continue
+		}
+		if m.entryGoesRight(i, right.localDepth) {
+			m.directory[i] = right
+		} else {
+			m.directory[i] = left
+		}
+	}
+}
+
+func (m *Map) doubleDirectory() {
+	doubled := make([]*Table, 2*len(m.directory))
+	for i, t := range m.directory {
+		doubled[2*i] = t
+		doubled[2*i+1] = t
+	}
+	m.directory = doubled
+	m.globalDepth++
+}

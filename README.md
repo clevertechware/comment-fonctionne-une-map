@@ -42,6 +42,11 @@ go test ./... -race
   `src/internal/runtime/maps/map.go` et `group.go`) ; le reste (structure
   `Group`, `Insert`, `Lookup`) est une simplification pour l'article, testée
   dans `swisstable_test.go`.
+  La croissance de l'article 2 y est aussi implémentée :
+  `table.go` (une `Table` double sur place au-delà de 7/8 de charge, jusqu'à
+  1024 slots) et `map.go` (un annuaire indexé par les premiers bits du hash ;
+  une table pleine se scinde seule en deux, les autres ne bougent pas),
+  testées dans `table_test.go` et `map_test.go`.
 
 ### `article2/` — Quand la map grossit
 
