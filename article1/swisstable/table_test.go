@@ -3,6 +3,7 @@ package swisstable
 import (
 	"fmt"
 	"hash/maphash"
+	"slices"
 	"testing"
 )
 
@@ -112,5 +113,34 @@ func TestTableIsAtMaxCapacityOnlyOnceItHoldsMaxTableCapacitySlots(t *testing.T) 
 
 	if !table.atMaxCapacity() {
 		t.Errorf("une table de %d slots est au plafond", table.Capacity())
+	}
+}
+
+func TestProbeVisitsEveryGroupOnceStartingFromTheGroupOfTheHash(t *testing.T) {
+	table := newTable(seed, 4, 0)
+	const hash = 2 << 7
+
+	var visited []*Group
+	for g := range table.probe(hash) {
+		visited = append(visited, g)
+	}
+
+	want := []*Group{&table.groups[2], &table.groups[3], &table.groups[0], &table.groups[1]}
+	if !slices.Equal(visited, want) {
+		t.Errorf("ordre de sondage inattendu : %v, voulu %v", visited, want)
+	}
+}
+
+func TestProbeStopsAsSoonAsTheCallerStopsIterating(t *testing.T) {
+	table := newTable(seed, 4, 0)
+
+	visits := 0
+	for range table.probe(0) {
+		visits++
+		break
+	}
+
+	if visits != 1 {
+		t.Errorf("%d groupes visités après un break, voulu 1", visits)
 	}
 }

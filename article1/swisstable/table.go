@@ -1,6 +1,9 @@
 package swisstable
 
-import "hash/maphash"
+import (
+	"hash/maphash"
+	"iter"
+)
 
 // maxAvgGroupLoad est le nombre maximal de slots occupés par groupe de 8, soit un facteur de charge de 7/8,
 // recopié de internal/runtime/maps/map.go (Go 1.27.1).
@@ -53,9 +56,7 @@ func (t *Table) hash(key string) uint64 {
 // une clé insérée aurait été placée avant lui.
 func (t *Table) Contains(key string) bool {
 	hash := t.hash(key)
-	start := GroupFor(hash, uint64(len(t.groups)))
-	for probe := range uint64(len(t.groups)) {
-		g := &t.groups[(start+probe)%uint64(len(t.groups))]
+	for g := range t.probe(hash) {
 		if found, _ := g.Lookup(hash, key); found {
 			return true
 		}
@@ -105,10 +106,23 @@ func (t *Table) atMaxCapacity() bool {
 }
 
 func (t *Table) place(hash uint64, key string) {
-	start := GroupFor(hash, uint64(len(t.groups)))
-	for probe := uint64(0); ; probe++ {
-		if t.groups[(start+probe)%uint64(len(t.groups))].Insert(hash, key) {
+	for g := range t.probe(hash) {
+		if g.Insert(hash, key) {
 			return
+		}
+	}
+	panic("swisstable: aucun groupe libre malgré le facteur de charge")
+}
+
+// probe parcourt chaque groupe une fois, à partir de celui que désigne le hash, en rebouclant en fin de table.
+func (t *Table) probe(hash uint64) iter.Seq[*Group] {
+	return func(yield func(*Group) bool) {
+		count := uint64(len(t.groups))
+		start := GroupFor(hash, count)
+		for offset := range count {
+			if !yield(&t.groups[(start+offset)%count]) {
+				return
+			}
 		}
 	}
 }
