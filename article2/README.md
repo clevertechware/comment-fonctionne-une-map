@@ -125,6 +125,59 @@ flowchart LR
 `Contains` s'arrête au premier groupe qui a encore un slot vide : si la clé avait été insérée, elle aurait été
 placée avant ce groupe.
 
+### `probe`, un itérateur Go
+
+```go
+func (t *Table) probe(hash uint64) iter.Seq[*Group] {
+    return func(yield func(*Group) bool) {
+        count := uint64(len(t.groups))
+        start := GroupFor(hash, count)
+        for offset := range count {
+            if !yield(&t.groups[(start+offset)%count]) {
+                return
+            }
+        }
+    }
+}
+```
+
+`iter.Seq[V]` est le type `func(yield func(V) bool)`. `probe` ne parcourt rien : elle renvoie la fonction qui
+sait parcourir. Depuis Go 1.23, `for g := range t.probe(hash) { ... }` est traduit en :
+
+```go
+t.probe(hash)(func(g *Group) bool {
+    // le corps de la boucle
+    return true
+})
+```
+
+Le corps de la boucle devient `yield`. Chaque `yield(groupe)` exécute le corps une fois. Son résultat dit à
+l'itérateur s'il doit continuer :
+
+- `true` : le corps s'est terminé normalement, l'itérateur passe au groupe suivant ;
+- `false` : le corps a fait un `break` ou un `return`. L'itérateur doit s'arrêter et ne plus appeler `yield`,
+  sinon Go panique.
+
+```mermaid
+sequenceDiagram
+    participant C as Contains
+    participant P as probe
+    C->>P: for g := range probe(hash)
+    P->>C: yield(groupe 2)
+    Note over C: pas de correspondance, groupe plein
+    C-->>P: true (on continue)
+    P->>C: yield(groupe 3)
+    Note over C: Lookup trouve la clé, return true
+    C-->>P: false (la boucle est quittée)
+    Note over P: return, les groupes 0 et 1 ne sont pas visités
+```
+
+Ici `GroupFor` vaut 2 et la table a 4 groupes : `(start+offset)%count` donne `2, 3, 0, 1`. Le sondage reboucle donc
+en fin de table, et chaque groupe est visité au plus une fois.
+
+Cet itérateur évite de répéter le calcul de position dans `Contains` et `place`. L'ordre de sondage est défini à un
+seul endroit, et aucun slice intermédiaire n'est alloué : les groupes sont produits un par un.
+
 ## 5. Deuxième niveau : l'annuaire et la scission
 
 Une table de 1024 slots ne grossit plus. La `Map` ajoute un annuaire, un tableau de pointeurs vers des tables.
