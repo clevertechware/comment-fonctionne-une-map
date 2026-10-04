@@ -31,8 +31,12 @@ func (m *Map) directoryIndex(hash uint64) uint64 {
 	return topBits(hash, m.globalDepth)
 }
 
+func (m *Map) hash(key string) uint64 {
+	return maphash.String(m.seed, key)
+}
+
 func (m *Map) tableFor(key string) *Table {
-	return m.directory[m.directoryIndex(maphash.String(m.seed, key))]
+	return m.directory[m.directoryIndex(m.hash(key))]
 }
 
 // Contains retourne true si key a été insérée.
@@ -81,7 +85,7 @@ func (m *Map) split(full *Table) {
 	right := newTable(m.seed, len(full.groups), depth)
 
 	eachKey(full.groups, func(key string) {
-		hash := maphash.String(m.seed, key)
+		hash := m.hash(key)
 		target := left
 		if hash>>(64-depth)&1 == 1 {
 			target = right
